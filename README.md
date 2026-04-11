@@ -7,7 +7,7 @@ Automates the entire flow: get DNS verification tokens → write Cloudflare TXT 
 ## Install
 
 ```bash
-claude plugin add --from github:FunnyPCCCC/batch-add-gsc
+claude plugin add --from github:FunnyPCC/batch-add-gsc
 ```
 
 ## Prerequisites
@@ -50,4 +50,4 @@ MIT
 
 ---
 
-*Created by @FunnyPCCCC & Claude Code*
+*Created by @FunnyPCC & Claude Code*
