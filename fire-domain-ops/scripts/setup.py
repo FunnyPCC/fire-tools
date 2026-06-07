@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pycryptodome"]
+# ///
 """
 fire-bt-ops 首次安装脚本
 

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pycryptodome"]
+# ///
 """SessionStart hook — 安静检查 bt-client SQLite vs panels.yml 差异。
 
 策略:

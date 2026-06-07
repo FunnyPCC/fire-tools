@@ -14,7 +14,7 @@ allowed-tools: Bash
 ## Query
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py domains <pattern>
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py domains <pattern>
 ```
 
 The output groups by host, lists primary (`*`) + all bound (`+`) domains per panel.

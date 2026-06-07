@@ -14,7 +14,7 @@ Apply these rules whenever helping the user with panel domain management — the
 **Why:** Another maintainer modifies panels in parallel — names change, sites move, domains get added. If `~/.fire/ops/panels.yml` and `sites.csv` are stale, every match/add operation will hit wrong sites.
 
 **How to apply:**
-- Before any panel-related work (add-domain, sync-domains, drift query): run `python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync` once per session
+- Before any panel-related work (add-domain, sync-domains, drift query): run `uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync` once per session
 - The SessionStart hook does this automatically — if you see `⚠️ 面板侧有 N 项变化` in the session boot context, immediately tell the user and ask whether to refresh
 - After `sync --apply` (panels changed), also re-run `bt.py sites` to refresh sites.csv before any add-domain work
 - If user says "刚导了配置" / "刚同步了" mid-session → re-sync immediately
@@ -100,7 +100,7 @@ https://<domain2>
 
 ## Reference: CLI commands
 
-All driven by `python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py <subcommand>`:
+All driven by `uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py <subcommand>`:
 
 | Subcommand | When |
 |---|---|

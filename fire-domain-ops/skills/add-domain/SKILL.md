@@ -19,7 +19,7 @@ If args are missing, ask:
 ## Step 1 — Dry-run
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py add-domain <branch> <domain1> <domain2> ...
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py add-domain <branch> <domain1> <domain2> ...
 ```
 
 Show the user the output verbatim (matches, drift, plan). Key things to flag from the output:
@@ -40,12 +40,12 @@ Plus a second question on drift if any:
 
 Use the choices to assemble:
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py add-domain <branch> <domains> [--exclude-host IPs] --apply
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py add-domain <branch> <domains> [--exclude-host IPs] --apply
 ```
 
 If user said sync drift:
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync-domains f<NNN>_app [--exclude-host IPs] --apply
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync-domains f<NNN>_app [--exclude-host IPs] --apply
 ```
 
 ## Step 4 — Code-block summary (MANDATORY)

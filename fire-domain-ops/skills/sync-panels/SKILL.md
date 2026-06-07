@@ -8,7 +8,7 @@ allowed-tools: Bash, AskUserQuestion
 ## Default flow (dry-run)
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync
 ```
 
 Output:
@@ -24,12 +24,12 @@ Use `AskUserQuestion`:
 
 On apply:
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync --apply
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync --apply
 ```
 
 If user chose to also refresh sites (recommended after panels.yml changes):
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sites
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sites
 ```
 
 ## Important

@@ -16,7 +16,7 @@ If unsure, ask the user which branch.
 ## Step 1 — Dry-run
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync-domains <pattern>
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync-domains <pattern>
 ```
 
 Output shows:
@@ -32,7 +32,7 @@ If a matched panel name contains `暂时没用` / `废` / `停` / `镜像`, ask 
 
 On yes:
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync-domains <pattern> [--exclude-host IPs] --apply
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sync-domains <pattern> [--exclude-host IPs] --apply
 ```
 
 ## Step 3 — Report

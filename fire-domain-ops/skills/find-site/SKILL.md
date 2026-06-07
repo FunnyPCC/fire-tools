@@ -8,7 +8,7 @@ allowed-tools: Bash
 ## Run
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py find-site <pattern>
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py find-site <pattern>
 ```
 
 Pattern is a free-text substring — matches both 网站名 column and 根目录 column (case-insensitive).

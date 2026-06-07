@@ -19,7 +19,7 @@ If any fails, tell user what to install:
 ## Step 1 — Generate panels.yml
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/setup.py
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/setup.py
 ```
 
 Output: `✓ 写入 ~/.fire/ops/panels.yml (43 面板)` + host_aliases count
@@ -34,7 +34,7 @@ This script:
 ## Step 2 — Pull sites catalog
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sites
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sites
 ```
 
 Generates `~/.fire/ops/sites.csv` and `sites_unreachable.csv`.
@@ -42,7 +42,7 @@ Generates `~/.fire/ops/sites.csv` and `sites_unreachable.csv`.
 ## Step 3 — Verify
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py ping
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py ping
 ```
 
 Should show OK for 60%+ panels. Failures are expected for panels whose API IP allowlist doesn't include the Clash exit IP — not a setup bug.

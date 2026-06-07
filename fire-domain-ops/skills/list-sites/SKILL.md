@@ -7,7 +7,7 @@ allowed-tools: Bash
 ## Run
 
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sites
+uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py sites
 ```
 
 Output reports:

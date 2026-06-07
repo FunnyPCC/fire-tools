@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pycryptodome"]
+# ///
 """
 Fire 项目宝塔面板批量管理 CLI
 
@@ -18,17 +22,17 @@ Fire 项目宝塔面板批量管理 CLI
   -c N                       并发数 (默认 8)
 
 示例:
-  python bt.py ping --filter f068
-  python bt.py find-site f065_app
-  python bt.py domains f065_app                              # 看 f065_app 现有所有域名
-  python bt.py add-domain 065 web3-x.com web3-y.com           # dry-run 看匹配 + 自动 dedup
-  python bt.py add-domain 065 web3-x.com web3-y.com --apply   # 真加
-  python bt.py sync
+  uv run bt.pyping --filter f068
+  uv run bt.pyfind-site f065_app
+  uv run bt.pydomains f065_app                              # 看 f065_app 现有所有域名
+  uv run bt.pyadd-domain 065 web3-x.com web3-y.com           # dry-run 看匹配 + 自动 dedup
+  uv run bt.pyadd-domain 065 web3-x.com web3-y.com --apply   # 真加
+  uv run bt.pysync
 """
 import argparse, base64, hashlib, json, os, re, sys, ssl, time
 import urllib.request, urllib.parse, urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from Crypto.Cipher import AES  # bt-client SQLite 解密用 (sync 命令需要)
+# 注: pycryptodome(AES) 仅 sync 命令解密 data.db 需要 → 改为 cmd_sync 内懒加载
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -504,6 +508,7 @@ def cmd_sync_domains(args, meta, panels):
 def cmd_sync(args, meta, panels):
     """diff bt-client SQLite vs panels.yml"""
     import shutil, tempfile
+    from Crypto.Cipher import AES  # 懒加载:仅 sync 解密 data.db 需要 pycryptodome
     src_db = os.path.expanduser('~/AppData/Roaming/bt-client/data/data.db')
     cfg_path = os.path.expanduser('~/AppData/Roaming/bt-client/data/config.json')
     if not os.path.exists(src_db):
