@@ -29,9 +29,26 @@ description: Use when the user wants to batch-add domains to Google Search Conso
 
 ## 操作流程
 
-### 第一步：优先确认 1Password 凭据
+### 第一步：凭据配置（`~/.fire/gsc.json`）+ 优先 1Password
 
-禁止硬编码密钥，始终优先从 1Password 或其他密钥管理器获取。
+**1Password 引用配置放在 `~/.fire/gsc.json`**（不硬编码进插件、不进 git；密钥本身仍只在 1Password）。脚本按 环境变量 > `~/.fire/gsc.json` > 空 读取这 4 个**引用 ID**：
+
+```json
+{
+  "op_account": "<1Password 账号 ID>",
+  "op_vault": "",
+  "op_cf_item": "<Cloudflare item ID>",
+  "op_google_item": "<Google OAuth item ID>"
+}
+```
+
+- **`op_vault` 留空**：按 item ID 跨 vault 查（CF 与 Google item 常在不同 vault，锁单一 vault 名会找不到）。
+- CF item 字段：`username` + `API key`；Google item 字段：`client_id`/`client_secret`/`refresh_token`。
+- item 被删/重建会换 ID。报 `isn't an item` 时，用 `op item list --account <acct> --format json` 按标题搜当前 ID，更新 `~/.fire/gsc.json`（不要改插件脚本）。
+
+**op 桌面集成可用 → Claude 可直接后台运行**（常规批量无需用户在终端跑）。注意：`op whoami` 可能显示"未登录"，但只要 1Password 桌面 app 解锁且开了 CLI 集成，`op item get --account <id> --reveal` 就能读值；首次/冷启动偶发 TLS 握手超时，**重试一次**即可。仅**首次/refresh_token 失效**时才需用户在能开浏览器的终端重新授权（8099 回调）。
+
+禁止硬编码密钥，始终优先从 1Password 获取。
 
 默认按这个顺序处理 Google 授权：
 
