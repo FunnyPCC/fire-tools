@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# 凭证/数据绝不入库(防御性;正常这些都在用户本地项目或 ~/.fire/ops/)
+.secrets.json
+.fire_creds.json
+*.secrets*
+*creds*
+panels.yml
+*.gsc_token*
+*.token
+.env
+
+# macOS
+.DS_Store

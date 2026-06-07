@@ -1,0 +1,9 @@
+{
+  "name": "fire-bt-ops",
+  "version": "0.1.0",
+  "description": "Fire 项目 43+ 台宝塔面板批量管理 —— 解 bt-client SQLite + 走 Clash 调 OpenAPI，含站点匹配/域名同步/漂移检测/会话开启自动 sync",
+  "author": {
+    "name": "ACheng",
+    "email": "funny.pc0173@gmail.com"
+  }
+}
