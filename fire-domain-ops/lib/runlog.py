@@ -69,8 +69,10 @@ class RunLog:
     def tail_cmd(self):
         """返回给用户的实时查看命令（绝对路径 + 稳定 latest.log）。"""
         ap = self.path.resolve()
-        latest = (self.path.parent / "latest.log").resolve()
-        return f'tail -F "{latest}"   # 或本次：tail -F "{ap}"'
+        # 注意：不要 resolve() latest.log，否则会跟随软链解析回时间戳文件名；
+        # 解析父目录再拼接，得到稳定的 latest.log 绝对路径本身。
+        latest = self.path.parent.resolve() / "latest.log"
+        return f'tail -F "{latest}"   # 本次具体日志：{ap}'
 
     def close(self):
         try:
