@@ -627,28 +627,52 @@ def cmd_sync(args, meta, panels):
         print(f"  ✓ panels.yml 重写完成 ({len(db_panels)} 台)")
         print(f"  → 建议接着跑 `python bt.py sites` 刷新 sites.csv")
 
+def _crontab_run(opener, p, shell, timeout=180, poll=2):
+    """在面板 p 上执行任意 shell，返回 (ok, output)。
+    Baota v11 签名 API 的 /system?action=RunShell 不支持任意 shell（报"指定参数无效"），
+    改走可靠路径：AddCrontab(toShell) → StartTask → 轮询 GetLogs → DelCrontab 清理。
+    任务即建即跑即删，schedule(hour/minute) 永不触发。"""
+    name = 'btpy_exec'
+    _, body = call_api(opener, p, '/crontab?action=AddCrontab', {
+        'name': name, 'type': 'day', 'where1': '', 'hour': '3', 'minute': '30',
+        'week': '', 'sType': 'toShell', 'sBody': shell, 'sName': name,
+        'backupTo': '', 'save': '',
+    })
+    if not (isinstance(body, dict) and body.get('status')):
+        return False, f"AddCrontab 失败: {body}"
+    tid = body.get('id')
+    try:
+        call_api(opener, p, '/crontab?action=StartTask', {'id': tid})
+        out, deadline = '', time.time() + timeout
+        while time.time() < deadline:
+            _, lg = call_api(opener, p, '/crontab?action=GetLogs', {'id': tid})
+            if isinstance(lg, dict):
+                out = lg.get('msg', '') or ''
+                if '] Successful' in out or '] Failed' in out:
+                    break
+            time.sleep(poll)
+        return True, out
+    finally:
+        call_api(opener, p, '/crontab?action=DelCrontab', {'id': tid})
+
 def cmd_exec(args, meta, panels):
     sel = filter_panels(panels, args.filter, args.group)
     opener = make_opener(meta.get('proxy'))
     def task(p):
-        code, body = call_api(opener, p, '/system?action=RunShell', {'shell': args.cmd})
-        return p, code, body
+        ok, out = _crontab_run(opener, p, args.cmd)
+        return p, ok, out
     with ThreadPoolExecutor(max_workers=args.concurrency) as ex:
         for fut in as_completed([ex.submit(task, p) for p in sel]):
-            p, code, body = fut.result()
-            print(f"\n=== [{p['id']}] {p['name']}  ({p['host']})  code={code} ===")
-            if isinstance(body, dict):
-                # bt RunShell returns {status: bool, msg: str} or similar
-                print(json.dumps(body, ensure_ascii=False, indent=2)[:800])
-            else:
-                print(str(body)[:800])
+            p, ok, out = fut.result()
+            print(f"\n=== [{p['id']}] {p['name']}  ({p['host']})  {'OK' if ok else 'ERR'} ===")
+            print(out.strip()[:2000] if out else '(无输出)')
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-c', '--concurrency', type=int, default=8)
     ap.add_argument('--filter', help='regex on name or host')
     ap.add_argument('-g', '--group', help='exact group name (公共/ptn项目/网关/东京网关)')
-    sub = ap.add_subparsers(dest='cmd', required=True)
+    sub = ap.add_subparsers(dest='subcmd', required=True)  # 注意: exec 的位置参数也叫 cmd，dest 不能用 cmd 否则被覆盖
     sub.add_parser('list')
     sub.add_parser('ping')
     c = sub.add_parser('call'); c.add_argument('action'); c.add_argument('-d', '--data', action='append'); c.add_argument('--json', action='store_true')
@@ -668,7 +692,7 @@ def main():
     meta, panels = load_panels()
     {'list': cmd_list, 'ping': cmd_ping, 'call': cmd_call, 'exec': cmd_exec,
      'sites': cmd_sites, 'find-site': cmd_find_site, 'add-domain': cmd_add_domain,
-     'sync': cmd_sync, 'domains': cmd_domains, 'sync-domains': cmd_sync_domains}[args.cmd](args, meta, panels)
+     'sync': cmd_sync, 'domains': cmd_domains, 'sync-domains': cmd_sync_domains}[args.subcmd](args, meta, panels)
 
 if __name__ == '__main__':
     main()

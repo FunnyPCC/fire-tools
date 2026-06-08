@@ -1,6 +1,6 @@
 {
   "name": "fire-domain-ops",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fire 域名运维一体化:firepikata 域名×项目盘点/批量加域名/空域名分配 + 宝塔面板批量管理(站点匹配/域名同步/漂移检测) + Google 风险·存活检测 + 批量加 GSC,会话开启自动 sync",
   "author": {
     "name": "FunnyPCC",
