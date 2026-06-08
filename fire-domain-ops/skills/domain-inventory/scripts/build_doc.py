@@ -14,6 +14,9 @@
 
 输出目录可用 DOMAIN_DOC_DIR 覆盖,请在项目根运行。
 """
+import sys
+try: sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")
+except Exception: pass
 import csv
 import datetime
 import json

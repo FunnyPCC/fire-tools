@@ -19,6 +19,8 @@ import argparse
 import re
 import subprocess
 import sys
+try: sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")
+except Exception: pass
 import time
 from collections import Counter
 from pathlib import Path

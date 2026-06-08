@@ -4,8 +4,11 @@
   ① 环境变量  ② 本地缓存文件  ③ 1Password(取出后写回缓存)
 凭证失效/过期时调 `refresh_secret()` 强制回 1P 重取并覆盖缓存 —— 避免每次都要 op 授权。
 
-缓存文件默认 `./gsc/.secrets.json`(相对当前工作目录,gitignore),可用环境变量
-`DOMAIN_SECRETS` 覆盖。**插件 repo 不含密钥**,密钥只在用户本地缓存。
+缓存文件默认 **全局** `~/.fire/secrets.json`(可用环境变量 `DOMAIN_SECRETS` 覆盖):
+  - 全局而非 CWD 相对 → ① 跨项目复用,不用每个项目重新 op;② 不会落进业务 git 仓库泄密。
+  - 仍**只读兼容**旧版 CWD 相对 `gsc/.secrets.json`(读得到、不再写),首次回 1P 取值时
+    会顺带把旧缓存合并写进全局文件完成迁移。
+**插件 repo 不含密钥**,密钥只在用户本地缓存(权限 0600)。
 
 供插件内各脚本 import:
     import sys; from pathlib import Path
@@ -19,19 +22,30 @@ from pathlib import Path
 
 OP_ACCOUNT = os.environ.get("OP_ACCOUNT", "I2VNP7XCVFHWLFDDA3ZL6ZTP3I")
 
+# 旧版 CWD 相对缓存:只读兼容,不再写入(见模块 docstring)
+_LEGACY_CACHE = Path("gsc/.secrets.json")
+
 
 def _cache_path() -> Path:
-    return Path(os.environ.get("DOMAIN_SECRETS", "gsc/.secrets.json"))
+    """主缓存(写入目标):默认全局 ~/.fire/secrets.json,DOMAIN_SECRETS 可覆盖。"""
+    env = os.environ.get("DOMAIN_SECRETS")
+    return Path(env) if env else (Path.home() / ".fire" / "secrets.json")
 
 
-def _load() -> dict:
-    p = _cache_path()
+def _read_json(p: Path) -> dict:
     if p.exists():
         try:
             return json.load(open(p, encoding="utf-8"))
         except Exception:
             return {}
     return {}
+
+
+def _load() -> dict:
+    """主缓存优先,旧 CWD 缓存只读兜底(主缓存的同名键覆盖旧缓存)。"""
+    cache = dict(_read_json(_LEGACY_CACHE))
+    cache.update(_read_json(_cache_path()))
+    return cache
 
 
 def _save(cache: dict) -> None:

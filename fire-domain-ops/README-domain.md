@@ -12,7 +12,7 @@
 
 ## 凭证策略(全工具箱通用)
 
-**1Password 是源,本地是缓存。** `lib/op_secrets.py`:环境变量 > 本地缓存 `./gsc/.secrets.json` > 1Password(取出后写回缓存);失效/过期自动 `refresh` 回 1P。**插件 repo 不含任何密钥** —— 密钥只在用户本地缓存(gitignore)。解决「每次用都要 op 授权」的痛点。
+**1Password 是源,本地是缓存。** `lib/op_secrets.py`:环境变量 > 本地缓存 > 1Password(取出后写回缓存);失效/过期自动 `refresh` 回 1P。缓存默认 **全局** `~/.fire/secrets.json`(0600,跨项目复用、不会落进业务 git 仓库;旧版 CWD 相对 `gsc/.secrets.json` 仍只读兼容,`DOMAIN_SECRETS` 可覆盖)。**插件 repo 不含任何密钥**。逃生口:op 连不上时直接走 `SB_API_KEY` / `FIRE_USER`+`FIRE_PASS` 环境变量。解决「每次用都要 op 授权」的痛点。
 
 ## 数据位置
 

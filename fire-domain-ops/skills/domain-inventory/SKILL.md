@@ -1,11 +1,17 @@
 ---
 name: domain-inventory
-description: Use when the user wants to pull/refresh the firepikata (火种/huozhong) domain × project inventory, check whether domains are risky (Google Safe Browsing / 欺骗性网页 / phishing), check whether domains are reachable (存活/可访问), or list a project's usable domains. Also trigger on mentions of firepikata domain backend, 域名维护, 可用域名, 域名风险, 域名存活, project domain availability, or huozhong domain ops.
+description: Use when the user wants to know which project a domain belongs to (域名属于哪个项目 / 域名归属), pull/refresh the firepikata (火种/huozhong) domain × project inventory, check whether domains are risky (Google Safe Browsing / 欺骗性网页 / phishing), check whether domains are reachable (存活/可访问), or list a project's usable domains. Also trigger on mentions of firepikata domain backend, 域名维护, 可用域名, 域名风险, 域名存活, project domain availability, or huozhong domain ops.
 ---
 
 # 域名库存盘点 · 风险/存活/可用(firepikata)
 
 从火种后台(firepikata)拉全部「项目 × 域名」,检测 Google 风险与域名存活,维护成一张主表。是「火种域名运维」工作流的**盘点+体检**阶段(其余阶段:`batch-add-gsc` 加域名到 GSC;`baota-site-mgmt` 宝塔站点)。
+
+## 查「域名属于哪个项目」(最常见,别走弯路)
+
+**归属的权威源是后台,不是宝塔。** `raw_domains.json` 里 `域名.appId → 项目`(`appId_dictText` 即项目编号,如 `f076`)就是答案。
+- ✅ 用本 skill:`fetch_domains.py` 抓 `raw_domains.json`,按 `domain` 命中取 `appId_dictText`。一批域名也是这样一次性映射出 `域名 → fNNN`。
+- ❌ **别先去宝塔**(`bt.py` / `find-site` / `sites.csv`):那只反映「已部署到面板」,大量后台已登记但**未部署**的域名在面板里 0 命中 → 误判「不属于任何项目」。宝塔只回答「这域名部署在哪台机/哪个站点」。
 
 ## 数据与输出位置
 
@@ -16,7 +22,11 @@ description: Use when the user wants to pull/refresh the firepikata (火种/huoz
 
 ## 凭证策略(全工具箱通用)
 
-**1Password 是源,本地是缓存。** 经 `lib/op_secrets.py` 解析:环境变量 > 本地缓存 `./gsc/.secrets.json` > 1Password(取出后写回缓存)。失效/过期时脚本会自动 `refresh` 回 1P 重取。**插件不含密钥**;密钥只在用户本地 `./gsc/.secrets.json`(gitignore)。涉及:`fire_username`/`fire_password`(item「火苗-公共运维后管」)、`sb_api_key`(item「Google Maps API」字段「API Key」)。op 需 1Password 桌面端解锁;有本地缓存时通常不触发 op。
+**1Password 是源,本地是缓存。** 经 `lib/op_secrets.py` 解析,优先级:**环境变量 > 本地缓存 > 1Password**(从 1P 取出后写回缓存;失效/过期自动 `refresh` 重取)。
+- 缓存默认 **全局** `~/.fire/secrets.json`(0600;跨项目复用,**不会落进业务 git 仓库泄密**);旧版 CWD 相对 `gsc/.secrets.json` 仍**只读兼容**。`DOMAIN_SECRETS` 可覆盖路径。**插件不含密钥**。
+- 键:`fire_username`/`fire_password`(1P item「火苗-公共运维后管」)、`sb_api_key`(1P item「Google Maps API」字段「API Key」;GCP 项目 `324812159513` 需启用 Safe Browsing API)。
+- **逃生口(op 连不上时直接绕过 1Password)**:`SB_API_KEY=...`(风险检测)、`FIRE_USER=... FIRE_PASS=...`(登录)走环境变量即可。
+- op 走 1Password **桌面端**:需桌面端**已解锁** + 设置 → Developer 打开 **「Integrate with 1Password CLI」**;有本地缓存时通常不触发 op。
 
 ## 工作规则(重要)
 
@@ -29,7 +39,7 @@ description: Use when the user wants to pull/refresh the firepikata (火种/huoz
 ## 命令(在项目根运行)
 
 ```bash
-PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/marketplaces/funnypcc/huozhong-domain-ops}"
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/marketplaces/fire-tools/fire-domain-ops}"
 # 一键重建(自动登录→抓取→风险→合并;不跑存活)
 bash "$PLUGIN/skills/domain-inventory/scripts/rebuild_domains.sh"
 # 只取一个新 token
