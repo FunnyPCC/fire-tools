@@ -81,7 +81,7 @@ uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py --filter "<ip正则,|分隔>" exec "<
 
 ## 凭据：`~/.fire/jenkins.json`（首次使用要建）
 ```json
-{ "url": "http://47.79.89.38:9090", "user": "pt", "token": "<Jenkins API token>" }
+{ "url": "http://<jenkins-host>:9090", "user": "pt", "token": "<Jenkins API token>" }
 ```
 - `chmod 600`，跟 `~/.fire/ops/panels.yml` 一样放 `~/.fire/`，**不进任何 git 仓库**。
 - token 在 Jenkins → 用户 → 配置 → API Token 生成。

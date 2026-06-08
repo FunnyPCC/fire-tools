@@ -6,7 +6,7 @@
 Fire 项目 Jenkins 构建 CLI —— 给 deploy-project skill 用
 
 凭据从 ~/.fire/jenkins.json 读（可用 FIRE_JENKINS_CONF 覆盖路径），**不进插件仓库**：
-  {"url": "http://47.79.89.38:9090", "user": "pt", "token": "<API token>"}
+  {"url": "http://<jenkins-host>:9090", "user": "pt", "token": "<API token>"}
 
 子命令:
   build <job> [--wait] [--timeout 1200] [--poll 10]   触发构建; --wait 轮询到结束
@@ -32,7 +32,7 @@ def load_conf():
     if not os.path.exists(CONF):
         sys.exit(
             f"缺少 Jenkins 配置: {CONF}\n"
-            f'  建立它(chmod 600): {{"url":"http://47.79.89.38:9090","user":"pt","token":"<API token>"}}'
+            f'  建立它(chmod 600): {{"url":"http://<jenkins-host>:9090","user":"pt","token":"<API token>"}}'
         )
     with open(CONF, encoding='utf-8') as f:
         c = json.load(f)

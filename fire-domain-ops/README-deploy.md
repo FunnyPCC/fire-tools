@@ -12,7 +12,7 @@ git 提交+推送 → Jenkins 构建 → 宝塔对应面板执行更新命令。
 跟 `~/.fire/ops/panels.yml` 一样放 `~/.fire/`，**不进任何 git 仓库**：
 
 ```json
-{ "url": "http://47.79.89.38:9090", "user": "pt", "token": "<Jenkins API token>" }
+{ "url": "http://<jenkins-host>:9090", "user": "pt", "token": "<Jenkins API token>" }
 ```
 
 - token：Jenkins → 用户 → 配置 → API Token 生成
