@@ -170,15 +170,18 @@ def tld(domain):
 
 
 def verify_landed(token, domains, rounds=12, gap=5):
-    """轮询 appDomainManager/list 按域名核对落库（status=1）。返回 {domain: bool}。"""
+    """轮询 appDomainManager/list 核对落库（status=1）。返回 {domain: bool}。
+
+    注意：后端 list 接口带 ?domain= 过滤参数时会 500（"操作失败，null"），
+    故这里改为不带过滤的全量分页拉取后在本地匹配，避开该坑。"""
     pending = set(domains)
     landed = {}
     for _ in range(rounds):
+        rows = fetch_list(token, "/api/app/appDomainManager/list", 2000)
+        status_by_domain = {r.get("domain"): r.get("status")
+                            for r in rows if r.get("domain")}
         for d in list(pending):
-            res = api_get(token, "/api/app/appDomainManager/list",
-                          {"domain": d, "pageNo": 1, "pageSize": 5, "_t": 1}) or {}
-            recs = res.get("records") or []
-            if any((x.get("domain") == d and x.get("status") in (1, "1")) for x in recs):
+            if status_by_domain.get(d) in (1, "1"):
                 landed[d] = True
                 pending.discard(d)
         if not pending:
