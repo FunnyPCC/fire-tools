@@ -14,6 +14,7 @@ Fire 项目宝塔面板批量管理 CLI
   exec "<cmd>"               在面板宿主机执行 shell
   find-site PATTERN          在 sites.csv 里找匹配的站点（网站名 OR 根目录）
   add-domain NNN DOMAIN...   把域名加到 fNNN_app 站点（默认 dry-run，加 --apply 才生效）
+  del-domain NNN DOMAIN...   从 fNNN_app 站点删域名（add-domain 的逆操作；--exclude-host 跳测试机）
   sync                       diff bt-client SQLite vs panels.yml（每个会话开始跑）
 
 通用选项 (放在子命令前):
@@ -464,6 +465,81 @@ def cmd_add_domain(args, meta, panels):
         with open(log_path, 'a', encoding='utf-8') as lf:
             lf.write(f"{datetime.datetime.now().isoformat()} {'OK' if ok else 'FAIL'} {host} {sname} domain={d} msg={msg}\n")
 
+def cmd_del_domain(args, meta, panels):
+    """从 fNNN_app 站点删域名（add-domain 的逆操作）。默认 dry-run；--apply 才调 API。
+    主域名不可删；--exclude-host 跳过指定机（如测试机 207.56.18.232）。"""
+    if re.match(r'^[a-zA-Z]', args.branch):
+        pattern = args.branch
+    else:
+        pattern = f"f{args.branch}_app" if not args.backend else f"f{args.branch}"
+    opener = make_opener(meta.get('proxy'))
+    excl = args.exclude_host.split(',') if args.exclude_host else None
+    hits_raw, groups = _collect_sites_for_pattern(opener, meta, panels, pattern, exclude_hosts=excl)
+    print(f"=== 站点匹配 (pattern={pattern}) ===")
+    if not groups:
+        print("无匹配。检查分支号是否正确，或试试 --backend。"); return
+    print(f"原始匹配 {len(hits_raw)} 条 → 按物理机去重后 {len(groups)} 组：\n")
+    for i, g in enumerate(groups, 1):
+        hosts = '/'.join(g['hosts'])
+        alias_note = f" (同机 {len(g['hosts'])} IP)" if len(g['hosts']) > 1 else ''
+        print(f"  [{i}] {hosts:<35} {g['panel_label']}{alias_note}")
+        if g.get('error'):
+            print(f"      ✗ {g['error']}"); continue
+        print(f"      站点: {g['site_name']} → {g['path']} (id={g['site_id']}, 状态={g['status']}, 现有{len(g['domains'])}域名)")
+
+    valid = [g for g in groups if not g.get('error')]
+    # DelDomain 需要 port → 重新拉一次带端口的附加域名表
+    portmap = {}  # canonical_host -> {domain: port}
+    for g in valid:
+        portmap[g['canonical_host']] = {d['name']: d.get('port', 80)
+                                        for d in get_domains(opener, g['panel'], g['site_id'])}
+
+    print(f"\n=== 待删域名 ({len(args.domains)}) ===")
+    plan = []  # (g, domain, status)
+    for g in groups:
+        for d in args.domains:
+            dn = d.strip()
+            if g.get('error') or not g.get('site_id'):
+                plan.append((g, dn, 'SKIP(无可用 panel)'))
+            elif dn == g['site_name']:
+                plan.append((g, dn, 'SKIP(主域名不可删)'))
+            elif dn in g['domains']:
+                plan.append((g, dn, 'DEL'))
+            else:
+                plan.append((g, dn, 'SKIP(不存在)'))
+    by_d = {}
+    for g, d, st in plan:
+        by_d.setdefault(d, []).append((g['canonical_host'], st))
+    for d, lst in by_d.items():
+        print(f"  - {d}")
+        for h, st in lst:
+            print(f"      {h}: {st}")
+
+    del_count = sum(1 for _, _, st in plan if st == 'DEL')
+    print(f"\n汇总: 删除 {del_count} | 跳过 {len(plan) - del_count} (含 {len(valid)} 个物理机)")
+    if not args.apply:
+        print("[DRY-RUN] 加 --apply 真执行")
+        return
+    if del_count == 0:
+        print("无可删项，退出。"); return
+    log_path = os.path.join(OPS_DIR, 'domain_add.log')
+    import datetime
+    ok_n = fail_n = 0
+    for g, d, st in plan:
+        if st != 'DEL':
+            continue
+        host = g['canonical_host']; panel = g['panel']; sid = g['site_id']; sname = g['site_name']
+        port = portmap.get(host, {}).get(d, 80)
+        payload = {'id': str(sid), 'webname': sname, 'domain': d, 'port': str(port)}
+        c2, b2 = call_api(opener, panel, '/site?action=DelDomain', payload)
+        ok, msg = _add_domain_result(c2, b2)
+        ok_n += ok; fail_n += (not ok)
+        print(f"  {'✓' if ok else '✗'} {host} {sname} ✗ {d}  | {msg}")
+        with open(log_path, 'a', encoding='utf-8') as lf:
+            lf.write(f"{datetime.datetime.now().isoformat()} {'DEL-OK' if ok else 'DEL-FAIL'} {host} {sname} domain={d} msg={msg}\n")
+    print(f"\n[APPLY] 删除成功 {ok_n} | 失败 {fail_n}")
+
+
 def cmd_sync_domains(args, meta, panels):
     """把匹配站点的域名做并集，补齐每个物理机缺的域名。需 --apply。"""
     opener = make_opener(meta.get('proxy'))
@@ -684,6 +760,10 @@ def main():
     ad.add_argument('--apply', action='store_true', help='真执行（默认 dry-run）')
     ad.add_argument('--backend', action='store_true', help='匹配 fNNN 后台（默认匹配 fNNN_app 前台）')
     ad.add_argument('--exclude-host', help='跳过指定 IP（逗号分隔，例: 45.197.2.251）')
+    dd = sub.add_parser('del-domain'); dd.add_argument('branch'); dd.add_argument('domains', nargs='+')
+    dd.add_argument('--apply', action='store_true', help='真执行（默认 dry-run）')
+    dd.add_argument('--backend', action='store_true', help='匹配 fNNN 后台（默认匹配 fNNN_app 前台）')
+    dd.add_argument('--exclude-host', help='跳过指定 IP（逗号分隔，例: 207.56.18.232 测试机）')
     sy = sub.add_parser('sync'); sy.add_argument('--apply', action='store_true', help='重写 panels.yml')
     sd = sub.add_parser('sync-domains'); sd.add_argument('pattern'); sd.add_argument('--apply', action='store_true', help='补齐多面板域名漂移')
     sd.add_argument('--exclude-host', help='跳过指定 IP（逗号分隔）')
@@ -692,6 +772,7 @@ def main():
     meta, panels = load_panels()
     {'list': cmd_list, 'ping': cmd_ping, 'call': cmd_call, 'exec': cmd_exec,
      'sites': cmd_sites, 'find-site': cmd_find_site, 'add-domain': cmd_add_domain,
+     'del-domain': cmd_del_domain,
      'sync': cmd_sync, 'domains': cmd_domains, 'sync-domains': cmd_sync_domains}[args.subcmd](args, meta, panels)
 
 if __name__ == '__main__':

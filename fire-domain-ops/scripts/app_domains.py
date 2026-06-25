@@ -12,6 +12,12 @@ firepikata 域名分配运维 —— 共享脚本（流程1 加域名 / 流程2 
   spare [--tld com] [--list] [--limit N] [--all-ages]          查待分配空域名;默认按 TLD 计数,--list 列具体域名
   add [--project P] [--ip IP] [--cf ACC] [--apply] DOMAIN...   给项目/备用加域名（batchAddDomains）
   allocate --project P --count N [--cf ACC] [--all-ages] [--apply]   给项目分配 N 个空域名（优先 .com）
+  del --project P [--keep-cf] [--cf ACC] [--apply] DOMAIN...   把域名从项目整体移除（add 的逆操作：删 CF zone + 后端落库）
+
+del 说明：后端 deleteBatch 是纯 DB 删除、不动 Cloudflare，故本命令默认**连带删 CF zone**
+  （--keep-cf 可跳过）。CF 密钥走 lib/op_secrets.py 取（1Password「Cloudflare <账号>」）。
+  宝塔层用 `bt.py del-domain` 单独删（与 add 流程一致：app_domains 管 CF+后端，bt.py 管宝塔）。
+  幂等：某层已无该域名则自动跳过、不报错；跨项目保护：域名属于别的项目则不删其 CF zone。
 
 域名分配铁律(spare/allocate 默认生效)：
   ① 只取**创建 ≤6 个月**的空域名（更老的可能临近过期/被风控）；
@@ -57,6 +63,46 @@ SPARE_MAX_AGE_MONTHS = 6             # 域名分配铁律:只取「创建≤6个
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN_ROOT / "lib"))
 from runlog import RunLog  # noqa: E402
+from op_secrets import get_secret  # noqa: E402
+
+# ---- Cloudflare 直连（del 删 zone 用；add 的 zone 是后端建的，这里只负责删） ----
+CF_API = "https://api.cloudflare.com/client/v4"
+# CF 账号 → 1Password item（取 username / "API key"）。新账号在此登记即可。
+CF_OP_ITEMS = {
+    "hualee887@gmail.com": "5mmk2gypev7hf4l6furemc2nca",  # Cloudflare hualee887
+}
+
+
+def cf_creds(account):
+    """取某 CF 账号的 (email, global_api_key)。优先环境变量/本地缓存，回退 1Password。"""
+    item = CF_OP_ITEMS.get(account)
+    if not item:
+        sys.exit(f"❌ 未登记 CF 账号 {account} 的 1Password item（见 app_domains.py CF_OP_ITEMS）")
+    email = get_secret(f"cf_email::{account}", op_item=item, op_field="username")
+    key = get_secret(f"cf_apikey::{account}", op_item=item, op_field="API key")
+    return email, key
+
+
+def cf_headers(email, key):
+    return {"X-Auth-Email": email, "X-Auth-Key": key, "Content-Type": "application/json"}
+
+
+def cf_zone_id(email, key, domain):
+    """查域名的 CF zone id；无则 None。"""
+    r = SESSION.get(f"{CF_API}/zones", params={"name": domain},
+                    headers=cf_headers(email, key), timeout=30)
+    res = (r.json() or {}).get("result") or []
+    return res[0]["id"] if res else None
+
+
+def cf_delete_zone(email, key, zone_id):
+    """删 CF zone，返回 (ok, msg)。"""
+    r = SESSION.delete(f"{CF_API}/zones/{zone_id}", headers=cf_headers(email, key), timeout=60)
+    try:
+        j = r.json()
+    except Exception:
+        return False, r.text[:120]
+    return bool(j.get("success")), (j.get("errors") or "ok")
 
 
 # ---------- 鉴权 + API ----------
@@ -95,6 +141,16 @@ def api_get(token, path, params=None):
 def api_post(token, path, body):
     """返回 (http_status, json)。不在此处退出，交调用方判断（用于探测 404 等）。"""
     r = SESSION.post(BASE + path, json=body, headers=_headers(token), timeout=120)
+    try:
+        j = r.json()
+    except Exception:
+        j = {"raw": r.text[:300]}
+    return r.status_code, j
+
+
+def api_delete(token, path, params=None):
+    """DELETE（ids 等走 query 参数，对应后端 @RequestParam）。返回 (http_status, json)。"""
+    r = SESSION.delete(BASE + path, params=params or {}, headers=_headers(token), timeout=120)
     try:
         j = r.json()
     except Exception:
@@ -367,6 +423,90 @@ def cmd_allocate(args):
     rl.close()
 
 
+# ---------- 流程：del（add 的逆操作：删 CF zone + 后端落库） ----------
+def cmd_del(args):
+    token = get_token()
+    domains = clean_domains(args.domains)
+    if not domains:
+        sys.exit("❌ 没有有效域名")
+    proj = resolve_project(token, args.project)
+    app_id = str(proj["appId"])
+
+    # 后端：全量拉取，本地按 appId 建 域名→id 映射（list 带 ?domain= 会 500，故全量本地匹配）
+    rows = fetch_list(token, "/api/app/appDomainManager/list", 2000)
+    by_dom_here = {}      # 本项目下 域名→记录id
+    appid_of = {}         # 全局 域名→appId（跨项目保护用）
+    for r in rows:
+        dom = r.get("domain")
+        if not dom:
+            continue
+        appid_of.setdefault(dom, str(r.get("appId") or ""))
+        if str(r.get("appId") or "") == app_id:
+            by_dom_here.setdefault(dom, r.get("id"))
+    in_backend = [(d, by_dom_here[d]) for d in domains if d in by_dom_here]
+    not_backend = [d for d in domains if d not in by_dom_here]
+
+    # CF：默认连带删 zone；跨项目保护（域名属于别的项目 → 不删其 zone）
+    do_cf = not args.keep_cf
+    cf_email = cf_key = None
+    cf_zone = {}          # 域名→zone_id（仅可删的）
+    cf_foreign = []       # 属于别项目、跳过删 zone 的
+    if do_cf:
+        cf_email, cf_key = cf_creds(args.cf)
+        for d in domains:
+            owner = appid_of.get(d)
+            if owner and owner != app_id:
+                cf_foreign.append(d)
+                continue
+            zid = cf_zone_id(cf_email, cf_key, d)
+            if zid:
+                cf_zone[d] = zid
+
+    rl = RunLog("del-domains")
+    rl.header(f"流程 删域名 {'[APPLY]' if args.apply else '[DRY-RUN]'}")
+    rl.log(f"项目: {proj['projectCode']}（{proj['name']}, appId={app_id}）")
+    rl.log(f"域名({len(domains)}): {', '.join(domains)}")
+    rl.log(f"后端待删 {len(in_backend)} | 后端无(已删/未绑) {len(not_backend)}"
+           + (f"：{', '.join(not_backend)}" if not_backend else ""))
+    if do_cf:
+        rl.log(f"CF zone 待删 {len(cf_zone)} | CF 无 {len(domains)-len(cf_zone)-len(cf_foreign)}"
+               + (f" | ⚠️跨项目跳过 {len(cf_foreign)}：{', '.join(cf_foreign)}" if cf_foreign else ""))
+    else:
+        rl.log("CF：--keep-cf，跳过删 zone")
+    rl.log("宝塔层请另跑：bt.py del-domain <项目号> <域名...> --apply（建议 --exclude-host 跳测试机）")
+
+    if not args.apply:
+        rl.log("→ DRY-RUN：未执行。确认后加 --apply。")
+        print("\n" + rl.tail_cmd())
+        rl.close()
+        return
+
+    # 执行：先删 CF zone，再删后端记录
+    cf_ok = cf_fail = 0
+    if do_cf:
+        for d in domains:
+            zid = cf_zone.get(d)
+            if not zid:
+                continue
+            ok, msg = cf_delete_zone(cf_email, cf_key, zid)
+            cf_ok += ok
+            cf_fail += (not ok)
+            rl.log(f"  CF {'✓' if ok else '✗'} {d}" + ("" if ok else f"  {msg}"))
+        rl.log(f"CF zone：删除 {cf_ok} | 失败 {cf_fail}")
+
+    if in_backend:
+        ids = ",".join(str(i) for _, i in in_backend)
+        code, j = api_delete(token, "/api/app/appDomainManager/deleteBatch", {"ids": ids})
+        ok = code == 200 and j.get("success")
+        rl.log(f"后端 deleteBatch {len(in_backend)} 条：HTTP {code} / {j.get('message') or j}")
+        rl.summary(len(in_backend) if ok else 0, 0 if ok else len(in_backend),
+                   [] if ok else [d for d, _ in in_backend])
+    else:
+        rl.log("后端无待删记录。")
+    print("\n" + rl.tail_cmd())
+    rl.close()
+
+
 def main():
     ap = argparse.ArgumentParser(description="firepikata 域名分配运维")
     sub = ap.add_subparsers(dest="subcmd", required=True)
@@ -393,6 +533,14 @@ def main():
     al.add_argument("--all-ages", action="store_true", help=f"放宽:含创建>{SPARE_MAX_AGE_MONTHS}个月的(默认只取≤{SPARE_MAX_AGE_MONTHS}月+优先取老)")
     al.add_argument("--apply", action="store_true", help="真提交（默认 dry-run）")
     al.set_defaults(func=cmd_allocate)
+
+    dl = sub.add_parser("del", help="把域名从项目整体移除（删 CF zone + 后端落库；add 的逆操作）")
+    dl.add_argument("domains", nargs="+")
+    dl.add_argument("--project", required=True, help="项目号（数字，模糊匹配 projectCode）")
+    dl.add_argument("--cf", default=DEFAULT_CF, help=f"CF账号（默认 {DEFAULT_CF}）")
+    dl.add_argument("--keep-cf", action="store_true", help="不删 CF zone（只删后端落库）")
+    dl.add_argument("--apply", action="store_true", help="真执行（默认 dry-run）")
+    dl.set_defaults(func=cmd_del)
 
     args = ap.parse_args()
     args.func(args)

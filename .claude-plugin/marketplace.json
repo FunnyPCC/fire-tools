@@ -11,7 +11,7 @@
     {
       "name": "fire-domain-ops",
       "source": "./fire-domain-ops",
-      "description": "Fire 域名运维一体化:firepikata 盘点/加域名/分配 + 宝塔批量管理 + GSC,会话自动 sync"
+      "description": "Fire 域名运维一体化:firepikata 盘点/加域名/分配/删域名 + 宝塔批量管理 + GSC,会话自动 sync"
     }
   ]
 }
