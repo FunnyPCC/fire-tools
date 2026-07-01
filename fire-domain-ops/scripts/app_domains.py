@@ -70,6 +70,7 @@ CF_API = "https://api.cloudflare.com/client/v4"
 # CF 账号 → 1Password item（取 username / "API key"）。新账号在此登记即可。
 CF_OP_ITEMS = {
     "hualee887@gmail.com": "5mmk2gypev7hf4l6furemc2nca",  # Cloudflare hualee887
+    "puti666666@gmail.com": "py4du3mbx7ajm2zdzpnz25w23i",  # Cloudflare puti666666（注意 1P 字段是 "API Key" 大写K，get_secret 缓存优先可绕过）
 }
 
 

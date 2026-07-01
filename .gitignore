@@ -12,5 +12,9 @@ panels.yml
 *.token
 .env
 
+# 运行日志(脚本 RunLog 有时会写到 CWD 下的 域名维护/logs/)
+域名维护/
+logs/
+
 # macOS
 .DS_Store
