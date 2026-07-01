@@ -17,7 +17,7 @@ Fire 项目 43+ 台宝塔面板批量管理的 Claude Code 插件。把 bt-clien
 ├── .claude-plugin/plugin.json
 ├── skills/
 │   ├── bt-panel-ops/             ← 知识 skill: 自动触发, 编码所有工作流规则
-│   ├── add-domain/               ← /fire-bt-ops:add-domain
+│   ├── baota-add-domain/         ← /fire-bt-ops:baota-add-domain (仅补宝塔别名, zone 已存在)
 │   ├── sync-panels/              ← /fire-bt-ops:sync-panels
 │   ├── sync-domains/             ← /fire-bt-ops:sync-domains
 │   ├── domains/                  ← /fire-bt-ops:domains
@@ -62,7 +62,8 @@ Fire 项目 43+ 台宝塔面板批量管理的 Claude Code 插件。把 bt-clien
 | 你说 | 插件触发 | 干啥 |
 |---|---|---|
 | "查 065 的域名" | `bt-panel-ops` + `domains` skill | 实时查 f065_app 在所有匹配面板上的域名列表 |
-| "把 X 加到 NNN" | `bt-panel-ops` + `add-domain` skill | dry-run → 给你看匹配 + 漂移 → 等你 ok → apply → 返回代码块格式 |
+| "把 X 加到 NNN"（全新域名，默认） | `add-domains` skill | 后端建 CF zone + 绑项目 + 联动宝塔（+ 等 active 后下游 GSC）。全新域名唯一正确入口 |
+| "把已有域名 X 补到 NNN 宝塔"（zone 已存在/漂移补齐） | `bt-panel-ops` + `baota-add-domain` skill | 仅补宝塔 nginx 别名：dry-run → 看匹配 + 漂移 → 等 ok → apply → 代码块格式 |
 | "刚导了配置" | `sync-panels` skill | 重读 SQLite，diff 后告诉你哪里变了 |
 | "把 065 的域名对齐" | `sync-domains` skill | 取并集，把缺的补到对应机器 |
 | "f068 在哪几个面板" | `find-site` skill | 离线查 sites.csv |

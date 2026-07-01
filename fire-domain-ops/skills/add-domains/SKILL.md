@@ -1,6 +1,6 @@
 ---
 name: add-domains
-description: 给某个 Fire 项目批量加新域名到 Cloudflare（或作为备用域名），加完联动宝塔。Use when the user says "给 007 加 a.com b.com"、"把 a.com 加到 007"、"给项目加域名"、"加备用域名 a.com"、batch add domains to a project. 指定项目→绑项目且 IP=项目 appIp；未指定项目→备用域名 IP=128.241.233.59。
+description: 【全新域名上线的默认入口】给某个 Fire 项目批量加新域名——firepikata 后端建 Cloudflare zone + 绑项目 + 联动宝塔（+ 下游 GSC）。Use when the user says "给 007 加 a.com b.com"、"把 a.com 加到 007"、"给项目加域名"、"加备用域名 a.com"、batch add domains to a project. 指定项目→绑项目且 IP=项目 appIp；未指定项目→备用域名 IP=128.241.233.59。**"把 X 加到 NNN" 默认走这个**（会建 CF zone，全新域名才能通到 GSC）；只想给宝塔站点补 nginx 别名、且域名 CF zone 已存在（漂移补齐/重挂面板）才用 `baota-add-domain`。
 argument-hint: [项目号] <域名...>（或 "加备用 <域名...>"）
 allowed-tools: Bash, AskUserQuestion
 ---
@@ -36,3 +36,20 @@ uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py add-domain <projectCode>_app <域名.
 
 ## 4. 反馈
 汇总：后端落库结果（✅/❌ 每个域名）+ 宝塔 code-block（新增域名）+ 漂移提示。
+
+## 5. 下游 GSC（等 zone 转 active 再跑）
+后端建的 Cloudflare zone 刚落库时是 **`status=pending`**（CF 已分配 NS，但注册商 nameserver 还没指过来）。`batch_add_gsc.py` **只认 `status=active` 的 zone**，pending 会报 `no zone / not found in Cloudflare` 跳过——这不是 bug，是 DNS 委派没到位（Google 也解析不到 TXT）。正确顺序：
+
+1. 落库后查 zone 状态（同一套 CF 缓存凭据 `~/.fire/.gsc_cf_cache.json`）：
+   ```bash
+   # GET https://api.cloudflare.com/client/v4/zones?name=<域名>  → result[0].status
+   ```
+2. `pending` → 等注册商把 NS 切到 CF 给的那对（如 `chan.ns.cloudflare.com`/`johnny.ns.cloudflare.com`），几分钟~几小时后自动转 `active`。切 NS 不在本工具箱范围（无注册商接口）。
+3. `active` → 跑 `batch-add-gsc`：
+   ```bash
+   uv run ${CLAUDE_PLUGIN_ROOT}/skills/batch-add-gsc/scripts/batch_add_gsc.py --domains <域名...>
+   ```
+   （CF/Google 已长期授权，无需再确认。Google token 若过期报 `invalid_grant`，用 `--reauth` 走一次浏览器重授权，会自动同步回 1Password + 本地缓存。）
+
+> 完整链：`add-domains`（后端建 zone+绑项目+联动宝塔）→ 等 zone `active` → `batch-add-gsc`（写 TXT 验证+注册 sc-domain）。
+> 反过来只补宝塔别名（zone 已存在）用 `baota-add-domain`。

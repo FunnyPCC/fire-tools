@@ -130,7 +130,7 @@ All driven by `uv run ${CLAUDE_PLUGIN_ROOT}/scripts/bt.py <subcommand>`:
 ## Reference: Sub-skills (slash commands)
 
 Users can also invoke specific commands directly:
-- `/fire-bt-ops:add-domain` — guided add-domain flow
+- `/fire-bt-ops:baota-add-domain` — guided 宝塔-only 补域名 flow（zone 已存在；全新域名用 `add-domains`）
 - `/fire-bt-ops:sync-panels` — refresh panels.yml from bt-client
 - `/fire-bt-ops:sync-domains` — fix drift on a pattern
 - `/fire-bt-ops:domains` — query domain list
